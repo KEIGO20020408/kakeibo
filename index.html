@@ -643,20 +643,14 @@ async function syncToSheets() {
     ...Object.entries(incTotals).map(([cat, amt]) => ({month: currentMonth, category: cat, amount: amt})),
   ];
   try {
-    const res = await fetch(settings.gasUrl, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({secret: settings.gasSecret, entries: syncEntries})
-    });
-    const data = await res.json();
-    if (data.ok) {
-      pendingSync = [];
-      save('pendingSync', pendingSync);
-      updateSyncBadge();
-      showToast(`✅ 同期完了（${data.updated}件更新）`);
-    } else {
-      showToast('❌ エラー: ' + (data.error || '不明'));
-    }
+    const url = settings.gasUrl +
+      '?secret=' + encodeURIComponent(settings.gasSecret) +
+      '&entries=' + encodeURIComponent(JSON.stringify(syncEntries));
+    await fetch(url, { method: 'GET', mode: 'no-cors' });
+    pendingSync = [];
+    save('pendingSync', pendingSync);
+    updateSyncBadge();
+    showToast('✅ 同期しました！スプレッドシートを確認してください');
   } catch(err) {
     showToast('❌ 通信エラー。URLを確認してください');
   }
