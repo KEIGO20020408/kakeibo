@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="家計簿">
+<title>家計簿</title>
+<style>
+  :root {
+    --bg: #f5f0eb;
+    --surface: #fffdf9;
+    --accent: #2d5a3d;
+    --accent2: #e8a838;
+    --text: #1a1a1a;
+    --text2: #6b6b6b;
+    --border: #e0d8cc;
+    --red: #c94040;
+    --green: #2d5a3d;
+    --radius: 16px;
+    --font: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; max-width: 430px; margin: 0 auto; }
+
+  /* Header */
+  .header { background: var(--accent); color: white; padding: 16px 20px 12px; position: sticky; top: 0; z-index: 100; }
+  .header-top { display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+  .header-actions { display: flex; gap: 10px; }
+  .icon-btn { background: rgba(255,255,255,0.15); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .sync-badge { position: relative; }
+  .unsync-dot { position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; background: var(--accent2); border-radius: 50%; display: none; }
+  .unsync-dot.show { display: block; }
+
+  /* Tabs */
+  .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .tab { flex: 1; padding: 12px 4px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text2); border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Views */
+  .view { display: none; padding-bottom: 80px; }
+  .view.active { display: block; }
+
+  /* Calendar */
+  .month-nav { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 8px; background: var(--surface); }
+  .month-nav h2 { font-size: 18px; font-weight: 700; }
+  .nav-btn { background: none; border: 1px solid var(--border); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); background: var(--surface); padding: 0 8px 8px; gap: 2px; }
+  .cal-day-label { text-align: center; font-size: 11px; font-weight: 600; color: var(--text2); padding: 6px 0; }
+  .cal-day-label:first-child { color: var(--red); }
+  .cal-day-label:last-child { color: #4466cc; }
+  .cal-cell { min-height: 52px; border-radius: 10px; padding: 4px; cursor: pointer; transition: background 0.15s; position: relative; }
+  .cal-cell:active { background: #e8f0eb; }
+  .cal-cell.empty { cursor: default; }
+  .cal-cell.today .day-num { background: var(--accent); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+  .day-num { font-size: 13px; font-weight: 600; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+  .cal-cell:first-child .day-num, .cal-cell.sun .day-num { color: var(--red); }
+  .cal-cell.sat .day-num { color: #4466cc; }
+  .cal-cell.today.sun .day-num, .cal-cell.today.sat .day-num { color: white; }
+  .day-amount { font-size: 10px; font-weight: 600; color: var(--red); text-align: center; margin-top: 1px; white-space: nowrap; overflow: hidden; }
+  .day-amount.income { color: var(--green); }
+  .day-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent2); margin: 2px auto 0; }
+
+  /* Entry list */
+  .section-title { font-size: 13px; font-weight: 700; color: var(--text2); padding: 16px 20px 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .entry-list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
+  .entry-card { background: var(--surface); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); }
+  .entry-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .entry-icon.expense { background: #fde8e8; }
+  .entry-icon.income { background: #e8f5ee; }
+  .entry-info { flex: 1; min-width: 0; }
+  .entry-cat { font-size: 14px; font-weight: 600; }
+  .entry-meta { font-size: 12px; color: var(--text2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry-amount { font-size: 16px; font-weight: 700; }
+  .entry-amount.expense { color: var(--red); }
+  .entry-amount.income { color: var(--green); }
+  .entry-delete { background: none; border: none; color: var(--text2); font-size: 18px; padding: 4px; cursor: pointer; opacity: 0.5; }
+  .entry-delete:active { opacity: 1; }
+
+  /* Monthly summary */
+  .summary-header { padding: 16px 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .summary-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .summary-card { background: var(--bg); border-radius: 12px; padding: 12px; text-align: center; }
+  .summary-card .label { font-size: 11px; color: var(--text2); font-weight: 600; }
+  .summary-card .value { font-size: 16px; font-weight: 700; margin-top: 4px; }
+  .summary-card.expense .value { color: var(--red); }
+  .summary-card.income .value { color: var(--green); }
+  .summary-card.balance .value { font-size: 15px; }
+  .category-section { padding: 0 16px; margin-top: 8px; }
+  .cat-row { background: var(--surface); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--border); margin-bottom: 6px; }
+  .cat-row-left { display: flex; align-items: center; gap: 10px; }
+  .cat-row-icon { font-size: 20px; width: 32px; text-align: center; }
+  .cat-row-name { font-size: 14px; font-weight: 600; }
+  .cat-row-pct { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .cat-row-amount { font-size: 15px; font-weight: 700; color: var(--red); }
+  .cat-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-top: 6px; }
+  .cat-bar { height: 3px; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+
+  /* Settings */
+  .settings-section { padding: 16px; }
+  .settings-card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: 16px; }
+  .settings-row { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-label { font-size: 13px; font-weight: 600; color: var(--text2); }
+  .settings-input { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: var(--font); width: 100%; background: var(--bg); }
+  .settings-input:focus { outline: none; border-color: var(--accent); }
+  .btn { padding: 12px 20px; border-radius: 12px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; width: 100%; font-family: var(--font); transition: opacity 0.15s; }
+  .btn:active { opacity: 0.8; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-secondary { background: var(--surface); color: var(--accent); border: 1px solid var(--accent); }
+  .btn-danger { background: #fde8e8; color: var(--red); }
+  .cat-manage { display: flex; flex-direction: column; gap: 6px; }
+  .cat-item { display: flex; align-items: center; gap: 8px; background: var(--bg); border-radius: 10px; padding: 8px 12px; }
+  .cat-item-icon { font-size: 18px; width: 28px; text-align: center; }
+  .cat-item-name { flex: 1; font-size: 14px; font-weight: 600; }
+  .cat-item-type { font-size: 11px; color: var(--text2); background: var(--border); padding: 2px 8px; border-radius: 20px; }
+  .cat-del { background: none; border: none; color: var(--text2); font-size: 16px; cursor: pointer; padding: 4px; }
+  .add-cat-form { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .add-cat-input { flex: 1; min-width: 120px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: var(--font); background: var(--bg); }
+  .add-cat-input:focus { outline: none; border-color: var(--accent); }
+  .add-cat-select { border: 1px solid var(--border); border-radius: 8px; padding: 10px 8px; font-size: 13px; font-family: var(--font); background: var(--bg); }
+  .add-cat-select:focus { outline: none; }
+
+  /* FAB */
+  .fab { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: white; border: none; font-size: 28px; cursor: pointer; box-shadow: 0 4px 16px rgba(45,90,61,0.4); display: flex; align-items: center; justify-content: center; z-index: 50; transition: transform 0.15s; }
+  .fab:active { transform: scale(0.92); }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+  .modal-overlay.show { opacity: 1; pointer-events: all; }
+  .modal { background: var(--surface); border-radius: 24px 24px 0 0; width: 100%; padding: 24px 20px 40px; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32,0.72,0,1); max-height: 90vh; overflow-y: auto; }
+  .modal-overlay.show .modal { transform: translateY(0); }
+  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+  .modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+  .form-row { margin-bottom: 16px; }
+  .form-label { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px; display: block; }
+  .form-input { width: 100%; border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; font-size: 16px; font-family: var(--font); background: var(--bg); }
+  .form-input:focus { outline: none; border-color: var(--accent); }
+  .type-toggle { display: flex; gap: 8px; margin-bottom: 20px; }
+  .type-btn { flex: 1; padding: 10px; border-radius: 12px; border: 2px solid var(--border); background: none; font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--font); transition: all 0.15s; }
+  .type-btn.active.expense { background: #fde8e8; border-color: var(--red); color: var(--red); }
+  .type-btn.active.income { background: #e8f5ee; border-color: var(--green); color: var(--green); }
+  .cat-select-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 16px; max-height: 180px; overflow-y: auto; }
+  .cat-select-btn { padding: 10px 6px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg); font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; font-family: var(--font); transition: all 0.15s; }
+  .cat-select-btn .icon { font-size: 20px; display: block; margin-bottom: 2px; }
+  .cat-select-btn.selected { border-color: var(--accent); background: #e8f0eb; color: var(--accent); }
+
+  /* Toast */
+  .toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px); background: var(--accent); color: white; padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: all 0.3s; z-index: 300; white-space: nowrap; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text2); }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <h1>💴 家計簿</h1>
+    <div class="header-actions">
+      <button class="icon-btn sync-badge" onclick="syncToSheets()" title="同期">
+        ☁️
+        <span class="unsync-dot" id="unsyncDot"></span>
+      </button>
+      <button class="icon-btn" onclick="switchTab('settings')">⚙️</button>
+    </div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('calendar')">📅 カレンダー</button>
+  <button class="tab" onclick="switchTab('list')">📋 明細</button>
+  <button class="tab" onclick="switchTab('monthly')">📊 月次</button>
+  <button class="tab" onclick="switchTab('settings')">⚙️ 設定</button>
+</div>
+
+<!-- CALENDAR VIEW -->
+<div class="view active" id="view-calendar">
+  <div class="month-nav">
+    <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+    <h2 id="calMonthTitle"></h2>
+    <button class="nav-btn" onclick="changeMonth(1)">›</button>
+  </div>
+  <div class="cal-grid" id="calGrid"></div>
+  <div class="section-title" id="selectedDayTitle">今日の明細</div>
+  <div class="entry-list" id="selectedDayEntries"></div>
+</div>
+
+<!-- LIST VIEW -->
+<div class="view" id="view-list">
+  <div class="month-nav">
+    <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+    <h2 id="listMonthTitle"></h2>
+    <button class="nav-btn" onclick="changeMonth(1)">›</button>
+  </div>
+  <div class="entry-list" id="allEntries" style="padding-top:8px;"></div>
+</div>
+
+<!-- MONTHLY VIEW -->
+<div class="view" id="view-monthly">
+  <div class="month-nav">
+    <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+    <h2 id="monthlyTitle"></h2>
+    <button class="nav-btn" onclick="changeMonth(1)">›</button>
+  </div>
+  <div class="summary-header">
+    <div class="summary-cards">
+      <div class="summary-card income">
+        <div class="label">収入</div>
+        <div class="value" id="summaryIncome">¥0</div>
+      </div>
+      <div class="summary-card expense">
+        <div class="label">支出</div>
+        <div class="value" id="summaryExpense">¥0</div>
+      </div>
+      <div class="summary-card balance">
+        <div class="label">収支</div>
+        <div class="value" id="summaryBalance">¥0</div>
+      </div>
+    </div>
+  </div>
+  <div class="section-title">カテゴリ別支出</div>
+  <div class="category-section" id="categoryBreakdown"></div>
+</div>
+
+<!-- SETTINGS VIEW -->
+<div class="view" id="view-settings">
+  <div class="settings-section">
+    <p class="section-title" style="padding:0 0 8px;">接続設定</p>
+    <div class="settings-card">
+      <div class="settings-row">
+        <label class="settings-label">GAS ウェブアプリ URL</label>
+        <input class="settings-input" type="url" id="gasUrl" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <div class="settings-row">
+        <label class="settings-label">共有シークレット</label>
+        <input class="settings-input" type="password" id="gasSecret" placeholder="設定したシークレット文字列">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button class="btn btn-primary" onclick="saveSettings()">設定を保存</button>
+      <button class="btn btn-secondary" onclick="syncToSheets()">今すぐ同期</button>
+    </div>
+
+    <p class="section-title" style="padding:0 0 8px;">カテゴリ管理</p>
+    <div class="settings-card">
+      <div class="settings-row">
+        <div class="cat-manage" id="catManageList"></div>
+        <div class="add-cat-form">
+          <input class="add-cat-input" type="text" id="newCatName" placeholder="カテゴリ名">
+          <input class="add-cat-input" type="text" id="newCatIcon" placeholder="絵文字" style="width:60px;min-width:60px;">
+          <select class="add-cat-select" id="newCatType">
+            <option value="expense">支出</option>
+            <option value="income">収入</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="addCategory()">＋ カテゴリを追加</button>
+      </div>
+    </div>
+
+    <p class="section-title" style="padding:0 0 8px;">データ管理</p>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button class="btn btn-secondary" onclick="exportData()">📤 JSON書き出し</button>
+      <label class="btn btn-secondary" style="text-align:center;cursor:pointer;">
+        📥 JSON読み込み
+        <input type="file" accept=".json" style="display:none;" onchange="importData(event)">
+      </label>
+      <button class="btn btn-danger" onclick="clearData()">🗑 全データを削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- FAB -->
+<button class="fab" id="fabBtn" onclick="openModal()">＋</button>
+
+<!-- ENTRY MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOnBg(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3 id="modalTitle">収支を入力</h3>
+    <div class="type-toggle">
+      <button class="type-btn active expense" id="typeExpenseBtn" onclick="setType('expense')">💸 支出</button>
+      <button class="type-btn income" id="typeIncomeBtn" onclick="setType('income')">💰 収入</button>
+    </div>
+    <div class="form-row">
+      <label class="form-label">日付</label>
+      <input class="form-input" type="date" id="entryDate">
+    </div>
+    <div class="form-row">
+      <label class="form-label">カテゴリ</label>
+      <div class="cat-select-grid" id="catSelectGrid"></div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">金額（円）</label>
+      <input class="form-input" type="number" id="entryAmount" placeholder="0" inputmode="numeric">
+    </div>
+    <div class="form-row">
+      <label class="form-label">メモ（任意）</label>
+      <input class="form-input" type="text" id="entryMemo" placeholder="例：スーパーで買い物">
+    </div>
+    <button class="btn btn-primary" onclick="saveEntry()">保存する</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ---- DATA ----
+const DEFAULT_CATEGORIES = [
+  {id:'c1',name:'食費（合計）',icon:'🛒',type:'expense'},
+  {id:'c2',name:'家賃',icon:'🏠',type:'expense'},
+  {id:'c3',name:'光熱費',icon:'💡',type:'expense'},
+  {id:'c4',name:'交通費',icon:'🚃',type:'expense'},
+  {id:'c5',name:'美容',icon:'💄',type:'expense'},
+  {id:'c6',name:'趣味',icon:'🎮',type:'expense'},
+  {id:'c7',name:'日用品',icon:'🧴',type:'expense'},
+  {id:'c8',name:'交際費（はなちゃん）',icon:'💑',type:'expense'},
+  {id:'c9',name:'交際費（友人）',icon:'👫',type:'expense'},
+  {id:'c10',name:'プレゼント',icon:'🎁',type:'expense'},
+  {id:'c11',name:'勉強',icon:'📚',type:'expense'},
+  {id:'c12',name:'サブスク',icon:'📱',type:'expense'},
+  {id:'c13',name:'服',icon:'👗',type:'expense'},
+  {id:'c14',name:'インテリア',icon:'🛋️',type:'expense'},
+  {id:'c15',name:'筋トレ',icon:'💪',type:'expense'},
+  {id:'c16',name:'経費',icon:'💼',type:'expense'},
+  {id:'c17',name:'本業',icon:'💰',type:'income'},
+  {id:'c18',name:'その他収入',icon:'✨',type:'income'},
+];
+
+function load(key, def) { try { return JSON.parse(localStorage.getItem(key)) ?? def; } catch { return def; } }
+function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+let entries = load('entries', []);
+let categories = load('categories', DEFAULT_CATEGORIES);
+let settings = load('settings', {gasUrl:'', gasSecret:''});
+let pendingSync = load('pendingSync', []);
+
+let currentYear = new Date().getFullYear();
+let currentMonth = new Date().getMonth() + 1;
+let selectedDate = todayStr();
+let currentType = 'expense';
+let selectedCatId = null;
+let activeTab = 'calendar';
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function fmtYen(n) { return '¥' + Math.abs(n).toLocaleString(); }
+
+// ---- TABS ----
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const tabs = ['calendar','list','monthly','settings'];
+    t.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-'+tab).classList.add('active');
+  document.getElementById('fabBtn').style.display = tab === 'settings' ? 'none' : 'flex';
+  if (tab === 'calendar') renderCalendar();
+  if (tab === 'list') renderList();
+  if (tab === 'monthly') renderMonthly();
+  if (tab === 'settings') renderSettings();
+}
+
+// ---- CALENDAR ----
+function renderCalendar() {
+  const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('calMonthTitle').textContent = `${currentYear}年 ${months[currentMonth-1]}`;
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+  ['日','月','火','水','木','金','土'].forEach((d,i) => {
+    const el = document.createElement('div');
+    el.className = 'cal-day-label';
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+  const first = new Date(currentYear, currentMonth-1, 1).getDay();
+  const days = new Date(currentYear, currentMonth, 0).getDate();
+  const today = new Date();
+  for (let i = 0; i < first; i++) {
+    const el = document.createElement('div'); el.className = 'cal-cell empty'; grid.appendChild(el);
+  }
+  for (let d = 1; d <= days; d++) {
+    const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayEntries = entries.filter(e => e.date === dateStr);
+    const totalExp = dayEntries.filter(e => e.type==='expense').reduce((s,e) => s+e.amount, 0);
+    const totalInc = dayEntries.filter(e => e.type==='income').reduce((s,e) => s+e.amount, 0);
+    const dow = new Date(currentYear, currentMonth-1, d).getDay();
+    const el = document.createElement('div');
+    el.className = 'cal-cell' + (dow===0?' sun':dow===6?' sat':'') +
+      (d===today.getDate() && currentMonth===today.getMonth()+1 && currentYear===today.getFullYear()?' today':'');
+    const isSelected = dateStr === selectedDate;
+    if (isSelected) el.style.background = '#e8f0eb';
+    el.innerHTML = `<div class="day-num">${d}</div>`;
+    if (totalExp > 0) el.innerHTML += `<div class="day-amount">-${fmtYen(totalExp)}</div>`;
+    else if (totalInc > 0) el.innerHTML += `<div class="day-amount income">+${fmtYen(totalInc)}</div>`;
+    else if (dayEntries.length > 0) el.innerHTML += `<div class="day-dot"></div>`;
+    el.onclick = () => selectDay(dateStr);
+    grid.appendChild(el);
+  }
+  renderSelectedDay();
+}
+
+function selectDay(dateStr) {
+  selectedDate = dateStr;
+  renderCalendar();
+}
+
+function renderSelectedDay() {
+  const d = new Date(selectedDate);
+  const m = d.getMonth()+1, day = d.getDate();
+  document.getElementById('selectedDayTitle').textContent = `${m}月${day}日の明細`;
+  const dayEntries = entries.filter(e => e.date === selectedDate);
+  const container = document.getElementById('selectedDayEntries');
+  renderEntryCards(container, dayEntries);
+}
+
+// ---- LIST ----
+function renderList() {
+  const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('listMonthTitle').textContent = `${currentYear}年 ${months[currentMonth-1]}`;
+  const prefix = `${currentYear}-${String(currentMonth).padStart(2,'0')}`;
+  const monthEntries = entries.filter(e => e.date.startsWith(prefix)).sort((a,b) => b.date.localeCompare(a.date));
+  const container = document.getElementById('allEntries');
+  renderEntryCards(container, monthEntries);
+}
+
+function renderEntryCards(container, list) {
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>まだ入力がありません<br>＋ボタンで追加しましょう</p></div>';
+    return;
+  }
+  container.innerHTML = '';
+  list.forEach(e => {
+    const cat = categories.find(c => c.id === e.catId) || {name: e.category||'その他', icon:'💴', type: e.type};
+    const card = document.createElement('div');
+    card.className = 'entry-card';
+    card.innerHTML = `
+      <div class="entry-icon ${e.type}"><span>${cat.icon}</span></div>
+      <div class="entry-info">
+        <div class="entry-cat">${cat.name}</div>
+        <div class="entry-meta">${e.date}${e.memo ? ' · ' + e.memo : ''}</div>
+      </div>
+      <div class="entry-amount ${e.type}">${e.type==='expense'?'-':'+'}${fmtYen(e.amount)}</div>
+      <button class="entry-delete" onclick="deleteEntry('${e.id}')">×</button>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// ---- MONTHLY ----
+function renderMonthly() {
+  const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('monthlyTitle').textContent = `${currentYear}年 ${months[currentMonth-1]}`;
+  const prefix = `${currentYear}-${String(currentMonth).padStart(2,'0')}`;
+  const monthEntries = entries.filter(e => e.date.startsWith(prefix));
+  const totalInc = monthEntries.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0);
+  const totalExp = monthEntries.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
+  const balance = totalInc - totalExp;
+  document.getElementById('summaryIncome').textContent = fmtYen(totalInc);
+  document.getElementById('summaryExpense').textContent = fmtYen(totalExp);
+  const bEl = document.getElementById('summaryBalance');
+  bEl.textContent = (balance >= 0 ? '+' : '-') + fmtYen(balance);
+  bEl.style.color = balance >= 0 ? 'var(--green)' : 'var(--red)';
+
+  const catMap = {};
+  monthEntries.filter(e=>e.type==='expense').forEach(e => {
+    const cat = categories.find(c=>c.id===e.catId) || {name:e.category||'その他',icon:'💴'};
+    const key = cat.name;
+    if (!catMap[key]) catMap[key] = {cat, amount:0};
+    catMap[key].amount += e.amount;
+  });
+  const sorted = Object.values(catMap).sort((a,b)=>b.amount-a.amount);
+  const maxAmt = sorted[0]?.amount || 1;
+  const container = document.getElementById('categoryBreakdown');
+  container.innerHTML = '';
+  if (sorted.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📊</div><p>今月の支出データがありません</p></div>';
+    return;
+  }
+  sorted.forEach(({cat, amount}) => {
+    const pct = Math.round(amount / totalExp * 100);
+    const row = document.createElement('div');
+    row.className = 'cat-row';
+    row.innerHTML = `
+      <div class="cat-row-left">
+        <div class="cat-row-icon">${cat.icon}</div>
+        <div>
+          <div class="cat-row-name">${cat.name}</div>
+          <div class="cat-bar-wrap" style="width:80px;"><div class="cat-bar" style="width:${amount/maxAmt*100}%"></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="cat-row-amount">${fmtYen(amount)}</div>
+        <div class="cat-row-pct" style="text-align:right">${pct}%</div>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+// ---- SETTINGS ----
+function renderSettings() {
+  document.getElementById('gasUrl').value = settings.gasUrl || '';
+  document.getElementById('gasSecret').value = settings.gasSecret || '';
+  const list = document.getElementById('catManageList');
+  list.innerHTML = '';
+  categories.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'cat-item';
+    el.innerHTML = `
+      <div class="cat-item-icon">${c.icon}</div>
+      <div class="cat-item-name">${c.name}</div>
+      <div class="cat-item-type">${c.type==='expense'?'支出':'収入'}</div>
+      <button class="cat-del" onclick="deleteCat('${c.id}')">×</button>
+    `;
+    list.appendChild(el);
+  });
+}
+
+function saveSettings() {
+  settings.gasUrl = document.getElementById('gasUrl').value.trim();
+  settings.gasSecret = document.getElementById('gasSecret').value.trim();
+  save('settings', settings);
+  showToast('✅ 設定を保存しました');
+}
+
+function addCategory() {
+  const name = document.getElementById('newCatName').value.trim();
+  const icon = document.getElementById('newCatIcon').value.trim() || '💴';
+  const type = document.getElementById('newCatType').value;
+  if (!name) { showToast('⚠️ カテゴリ名を入力してください'); return; }
+  categories.push({id:'c'+Date.now(), name, icon, type});
+  save('categories', categories);
+  document.getElementById('newCatName').value = '';
+  document.getElementById('newCatIcon').value = '';
+  renderSettings();
+  showToast('✅ カテゴリを追加しました');
+}
+
+function deleteCat(id) {
+  if (!confirm('このカテゴリを削除しますか？')) return;
+  categories = categories.filter(c => c.id !== id);
+  save('categories', categories);
+  renderSettings();
+}
+
+// ---- MODAL ----
+function openModal(dateStr) {
+  selectedDate = dateStr || selectedDate;
+  document.getElementById('entryDate').value = selectedDate;
+  document.getElementById('entryAmount').value = '';
+  document.getElementById('entryMemo').value = '';
+  selectedCatId = null;
+  setType('expense');
+  document.getElementById('modalOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('entryAmount').focus(), 400);
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+function closeModalOnBg(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+}
+
+function setType(type) {
+  currentType = type;
+  document.getElementById('typeExpenseBtn').classList.toggle('active', type==='expense');
+  document.getElementById('typeIncomeBtn').classList.toggle('active', type==='income');
+  selectedCatId = null;
+  renderCatGrid();
+}
+
+function renderCatGrid() {
+  const grid = document.getElementById('catSelectGrid');
+  grid.innerHTML = '';
+  categories.filter(c => c.type === currentType).forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'cat-select-btn' + (c.id === selectedCatId ? ' selected' : '');
+    btn.innerHTML = `<span class="icon">${c.icon}</span>${c.name}`;
+    btn.onclick = () => { selectedCatId = c.id; renderCatGrid(); };
+    grid.appendChild(btn);
+  });
+}
+
+function saveEntry() {
+  const date = document.getElementById('entryDate').value;
+  const amount = parseInt(document.getElementById('entryAmount').value);
+  const memo = document.getElementById('entryMemo').value.trim();
+  if (!date) { showToast('⚠️ 日付を入力してください'); return; }
+  if (!amount || amount <= 0) { showToast('⚠️ 金額を入力してください'); return; }
+  if (!selectedCatId) { showToast('⚠️ カテゴリを選択してください'); return; }
+  const cat = categories.find(c => c.id === selectedCatId);
+  const entry = { id: 'e'+Date.now(), date, type: currentType, catId: selectedCatId, category: cat.name, amount, memo };
+  entries.push(entry);
+  save('entries', entries);
+  pendingSync.push(entry.id);
+  save('pendingSync', pendingSync);
+  updateSyncBadge();
+  closeModal();
+  showToast('✅ 保存しました');
+  if (activeTab === 'calendar') renderCalendar();
+  if (activeTab === 'list') renderList();
+  if (activeTab === 'monthly') renderMonthly();
+}
+
+function deleteEntry(id) {
+  if (!confirm('この明細を削除しますか？')) return;
+  entries = entries.filter(e => e.id !== id);
+  save('entries', entries);
+  showToast('🗑 削除しました');
+  if (activeTab === 'calendar') renderCalendar();
+  if (activeTab === 'list') renderList();
+  if (activeTab === 'monthly') renderMonthly();
+}
+
+// ---- SYNC ----
+async function syncToSheets() {
+  if (!settings.gasUrl) { showToast('⚠️ GAS URLを設定してください'); switchTab('settings'); return; }
+  showToast('🔄 同期中...');
+  const prefix = `${currentYear}-${String(currentMonth).padStart(2,'0')}`;
+  const monthEntries = entries.filter(e => e.date.startsWith(prefix));
+  const catTotals = {};
+  monthEntries.filter(e=>e.type==='expense').forEach(e => {
+    catTotals[e.category] = (catTotals[e.category] || 0) + e.amount;
+  });
+  const incTotals = {};
+  monthEntries.filter(e=>e.type==='income').forEach(e => {
+    incTotals[e.category] = (incTotals[e.category] || 0) + e.amount;
+  });
+  const syncEntries = [
+    ...Object.entries(catTotals).map(([cat, amt]) => ({month: currentMonth, category: cat, amount: amt})),
+    ...Object.entries(incTotals).map(([cat, amt]) => ({month: currentMonth, category: cat, amount: amt})),
+  ];
+  try {
+    const res = await fetch(settings.gasUrl, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({secret: settings.gasSecret, entries: syncEntries})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      pendingSync = [];
+      save('pendingSync', pendingSync);
+      updateSyncBadge();
+      showToast(`✅ 同期完了（${data.updated}件更新）`);
+    } else {
+      showToast('❌ エラー: ' + (data.error || '不明'));
+    }
+  } catch(err) {
+    showToast('❌ 通信エラー。URLを確認してください');
+  }
+}
+
+function updateSyncBadge() {
+  document.getElementById('unsyncDot').classList.toggle('show', pendingSync.length > 0);
+}
+
+// ---- MONTH NAV ----
+function changeMonth(delta) {
+  currentMonth += delta;
+  if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+  if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+  if (activeTab === 'calendar') renderCalendar();
+  if (activeTab === 'list') renderList();
+  if (activeTab === 'monthly') renderMonthly();
+}
+
+// ---- IMPORT/EXPORT ----
+function exportData() {
+  const data = JSON.stringify({entries, categories, settings: {...settings, gasSecret:'***'}}, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `kakeibo_backup_${todayStr()}.json`; a.click();
+  showToast('📤 バックアップを書き出しました');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.entries) { entries = data.entries; save('entries', entries); }
+      if (data.categories) { categories = data.categories; save('categories', categories); }
+      showToast('✅ データを読み込みました');
+      if (activeTab === 'calendar') renderCalendar();
+    } catch { showToast('❌ ファイルの読み込みに失敗しました'); }
+  };
+  reader.readAsText(file);
+}
+
+function clearData() {
+  if (!confirm('全データを削除しますか？この操作は取り消せません。')) return;
+  entries = []; pendingSync = [];
+  save('entries', entries); save('pendingSync', pendingSync);
+  showToast('🗑 データを削除しました');
+  renderCalendar();
+}
+
+// ---- TOAST ----
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ---- INIT ----
+updateSyncBadge();
+renderCalendar();
+renderCatGrid();
+</script>
+</body>
+</html>
